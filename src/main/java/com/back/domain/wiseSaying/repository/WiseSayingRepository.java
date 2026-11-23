@@ -1,6 +1,7 @@
 package com.back.domain.wiseSaying.repository;
 
 import com.back.domain.wiseSaying.entity.WiseSaying;
+import com.back.standard.dto.Page;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,8 +24,27 @@ public class WiseSayingRepository {
         return wiseSaying;
     }
 
-    public List<WiseSaying> findForList() {
-        return wiseSayings.reversed();
+    public int count() {
+        return wiseSayings.size();
+    }
+
+    // 최신순으로, 검색어가 있으면 keywordType(content/author)에 부분 일치하는 것만 골라 페이지로 자른다
+    public Page<WiseSaying> findForList(String keywordType, String keyword, int page, int pageSize) {
+        List<WiseSaying> filtered = wiseSayings.reversed()
+                .stream()
+                .filter(wiseSaying -> matches(wiseSaying, keywordType, keyword))
+                .toList();
+
+        return Page.of(filtered, page, pageSize);
+    }
+
+    private static boolean matches(WiseSaying wiseSaying, String keywordType, String keyword) {
+        if (keyword.isBlank()) return true;
+
+        return switch (keywordType) {
+            case "author" -> wiseSaying.getAuthor().contains(keyword);
+            default -> wiseSaying.getContent().contains(keyword);
+        };
     }
 
     public Optional<WiseSaying> findById(int id) {

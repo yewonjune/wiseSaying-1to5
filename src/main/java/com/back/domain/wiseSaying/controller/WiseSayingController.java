@@ -4,9 +4,12 @@ import com.back.AppContext;
 import com.back.domain.wiseSaying.entity.WiseSaying;
 import com.back.domain.wiseSaying.service.WiseSayingService;
 import com.back.global.rq.Rq;
+import com.back.standard.dto.Page;
 
 import java.util.Optional;
 import java.util.Scanner;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 // 명언 관련 응대 (입력·출력은 여기서만)
 public class WiseSayingController {
@@ -25,15 +28,38 @@ public class WiseSayingController {
         System.out.println("%d번 명언이 등록되었습니다.".formatted(wiseSaying.getId()));
     }
 
-    public void actionList() {
+    public void actionList(Rq rq) {
+        String keywordType = rq.getParam("keywordType", "content");
+        String keyword = rq.getParam("keyword", "");
+        int page = rq.getParamAsInt("page", 1);
+
+        if (!keyword.isEmpty()) {
+            System.out.println("----------------------");
+            System.out.println("검색타입 : " + keywordType);
+            System.out.println("검색어 : " + keyword);
+            System.out.println("----------------------");
+        }
+
+        Page<WiseSaying> wiseSayingPage = wiseSayingService.findForList(keywordType, keyword, page);
+
         System.out.println("번호 / 작가 / 명언");
         System.out.println("----------------------");
 
-        wiseSayingService.findForList().forEach(wiseSaying -> System.out.println("%d / %s / %s".formatted(
+        wiseSayingPage.content().forEach(wiseSaying -> System.out.println("%d / %s / %s".formatted(
                 wiseSaying.getId(),
                 wiseSaying.getAuthor(),
                 wiseSaying.getContent()
         )));
+
+        System.out.println("----------------------");
+        System.out.println("페이지 : " + pageMenu(wiseSayingPage));
+    }
+
+    // "1 / [2] / 3" 처럼 현재 페이지를 [ ] 로 표시
+    private static String pageMenu(Page<?> page) {
+        return IntStream.rangeClosed(1, page.totalPages())
+                .mapToObj(i -> i == page.page() ? "[" + i + "]" : String.valueOf(i))
+                .collect(Collectors.joining(" / "));
     }
 
     public void actionDelete(Rq rq) {
