@@ -2,6 +2,7 @@ package com.back;
 
 import com.back.domain.system.controller.SystemController;
 import com.back.domain.wiseSaying.controller.WiseSayingController;
+import com.back.domain.wiseSaying.repository.WiseSayingFileRepository;
 import com.back.domain.wiseSaying.repository.WiseSayingRepository;
 import com.back.domain.wiseSaying.service.WiseSayingService;
 
@@ -17,7 +18,8 @@ public class AppContext {
 
     public static void init(Scanner scanner) {
         AppContext.scanner = scanner;
-        AppContext.wiseSayingRepository = new WiseSayingRepository();
+        // 저장소 구현체만 갈아 끼운다 (컨트롤러·서비스는 그대로)
+        AppContext.wiseSayingRepository = new WiseSayingFileRepository(AppConfig.getDbDir());
         AppContext.wiseSayingService = new WiseSayingService();
         AppContext.wiseSayingController = new WiseSayingController();
         AppContext.systemController = new SystemController();

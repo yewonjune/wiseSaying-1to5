@@ -1,13 +1,45 @@
 package com.back;
 
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
+import java.util.stream.Stream;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
-// AppTestRunner.run() 은 매번 new App(scanner) 로 실행하므로,
-// 테스트마다 저장소와 번호가 새로 초기화된다 (실행 순서와 상관없이 결과가 같다)
+// 실제 db/ 가 아닌 테스트 전용 폴더(db/test/wiseSaying)를 쓰고, 매 테스트 전에 비운다
+// → 실행 순서와 상관없이 결과가 같다
 class WiseSayingControllerTest {
+    @BeforeAll
+    static void beforeAll() {
+        AppConfig.setTestMode();
+    }
+
+    @BeforeEach
+    void beforeEach() throws IOException {
+        deleteRecursively(AppConfig.getDbDir());
+    }
+
+    private static void deleteRecursively(Path dir) throws IOException {
+        if (!Files.exists(dir)) return;
+
+        try (Stream<Path> paths = Files.walk(dir)) {
+            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+                Files.delete(path);
+            }
+        }
+    }
+
+    private static String readDbFile(String fileName) throws IOException {
+        return Files.readString(AppConfig.getDbDir().resolve(fileName)).replace("\r\n", "\n");
+    }
+
     @Test
     @DisplayName("종료")
     void t1() {
@@ -177,7 +209,7 @@ class WiseSayingControllerTest {
     }
 
     @Test
-    @DisplayName("앱을 다시 실행하면 저장소와 번호가 초기화된다")
+    @DisplayName("앱을 다시 시작해도 명언이 남고 번호가 이어진다")
     void t11() {
         AppTestRunner.run("""
                 등록
@@ -195,8 +227,11 @@ class WiseSayingControllerTest {
                 """);
 
         assertThat(out)
-                .contains("1번 명언이 등록되었습니다.", "1 / 작자미상 / 과거에 집착하지 마라.")
-                .doesNotContain("현재를 사랑하라.");
+                .contains("2번 명언이 등록되었습니다.")
+                .containsSubsequence(
+                        "2 / 작자미상 / 과거에 집착하지 마라.",
+                        "1 / 작자미상 / 현재를 사랑하라."
+                );
     }
 
     // ---- 13단계: 검색 ----
@@ -361,5 +396,157 @@ class WiseSayingControllerTest {
         assertThat(out)
                 .contains("페이지 : [1]")
                 .doesNotContain("작자미상 10", "/ 2");
+    }
+
+    // ---- 9단계: 파일 영속성 ----
+
+    @Test
+    @DisplayName("등록하면 {번호}.json 과 lastId.txt 가 생긴다")
+    void t20() throws IOException {
+        AppTestRunner.run("""
+                등록
+                현재를 사랑하라.
+                작자미상
+                종료
+                """);
+
+        assertThat(readDbFile("1.json")).isEqualTo("""
+                {
+                  "id": 1,
+                  "content": "현재를 사랑하라.",
+                  "author": "작자미상"
+                }""");
+        assertThat(readDbFile("lastId.txt")).isEqualTo("1");
+    }
+
+    @Test
+    @DisplayName("프로그램을 다시 시작해도 파일에서 읽어 목록에 보여 준다")
+    void t21() {
+        AppTestRunner.run("""
+                등록
+                현재를 사랑하라.
+                작자미상
+                등록
+                과거에 집착하지 마라.
+                작자미상
+                종료
+                """);
+
+        String out = AppTestRunner.run("""
+                목록
+                종료
+                """);
+
+        assertThat(out).containsSubsequence(
+                "번호 / 작가 / 명언",
+                "----------------------",
+                "2 / 작자미상 / 과거에 집착하지 마라.",
+                "1 / 작자미상 / 현재를 사랑하라."
+        );
+    }
+
+    @Test
+    @DisplayName("수정하면 파일이 갱신되고, 재시작 후에도 수정된 내용이 보인다")
+    void t22() throws IOException {
+        AppTestRunner.run("""
+                등록
+                현재를 사랑하라.
+                작자미상
+                수정?id=1
+                현재와 자신을 사랑하라.
+                홍길동
+                종료
+                """);
+
+        assertThat(readDbFile("1.json")).contains(
+                "\"content\": \"현재와 자신을 사랑하라.\"",
+                "\"author\": \"홍길동\""
+        );
+
+        String out = AppTestRunner.run("""
+                목록
+                종료
+                """);
+
+        assertThat(out).contains("1 / 홍길동 / 현재와 자신을 사랑하라.");
+    }
+
+    @Test
+    @DisplayName("삭제하면 파일도 지우고, 재시작 후 새 명언은 삭제된 번호를 재사용하지 않는다")
+    void t23() {
+        AppTestRunner.run("""
+                등록
+                현재를 사랑하라.
+                작자미상
+                등록
+                과거에 집착하지 마라.
+                작자미상
+                삭제?id=2
+                종료
+                """);
+
+        assertThat(AppConfig.getDbDir().resolve("2.json")).doesNotExist();
+        assertThat(AppConfig.getDbDir().resolve("1.json")).exists();
+
+        String out = AppTestRunner.run("""
+                등록
+                새 명언
+                새 작가
+                목록
+                종료
+                """);
+
+        assertThat(out)
+                .contains("3번 명언이 등록되었습니다.", "3 / 새 작가 / 새 명언", "1 / 작자미상 / 현재를 사랑하라.")
+                .doesNotContain("2 / 작자미상 / 과거에 집착하지 마라.");
+    }
+
+    // ---- 10단계: 빌드 ----
+
+    @Test
+    @DisplayName("빌드: 모든 명언을 배열 형태의 data.json 으로 만들고 갱신 안내를 출력한다")
+    void t24() throws IOException {
+        String out = AppTestRunner.run("""
+                등록
+                명언 1
+                작가 1
+                등록
+                명언 2
+                작가 2
+                빌드
+                종료
+                """);
+
+        assertThat(out).contains("data.json 파일의 내용이 갱신되었습니다.");
+        assertThat(readDbFile("data.json")).isEqualTo("""
+                [
+                  {
+                    "id": 1,
+                    "content": "명언 1",
+                    "author": "작가 1"
+                  },
+                  {
+                    "id": 2,
+                    "content": "명언 2",
+                    "author": "작가 2"
+                  }
+                ]""");
+    }
+
+    @Test
+    @DisplayName("빌드 파일(data.json)과 lastId.txt 는 명언으로 읽지 않는다")
+    void t25() {
+        String out = AppTestRunner.run("""
+                등록
+                현재를 사랑하라.
+                작자미상
+                빌드
+                목록
+                종료
+                """);
+
+        assertThat(out)
+                .contains("1 / 작자미상 / 현재를 사랑하라.", "페이지 : [1]")
+                .doesNotContain("2 /");
     }
 }

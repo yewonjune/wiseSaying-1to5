@@ -39,6 +39,11 @@ public class WiseSayingService {
         return wiseSayingRepository.delete(id);
     }
 
+    // 모든 명언을 data.json 으로 모으고, 만든 파일 이름을 돌려준다
+    public String build() {
+        return wiseSayingRepository.build();
+    }
+
     public void modify(WiseSaying wiseSaying, String content, String author) {
         wiseSaying.setContent(content);
         wiseSaying.setAuthor(author);
