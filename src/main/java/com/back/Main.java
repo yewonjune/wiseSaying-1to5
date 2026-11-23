@@ -6,8 +6,7 @@ public class Main {
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
 
-        AppContext.init(scanner);
-        new App().run();
+        new App(scanner).run();
 
         scanner.close();
     }

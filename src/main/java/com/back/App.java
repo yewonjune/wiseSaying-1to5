@@ -8,9 +8,18 @@ import java.util.Scanner;
 
 // 입력을 받아 알맞은 컨트롤러로 넘기기만 한다
 public class App {
-    private final Scanner scanner = AppContext.scanner;
-    private final SystemController systemController = AppContext.systemController;
-    private final WiseSayingController wiseSayingController = AppContext.wiseSayingController;
+    private final Scanner scanner;
+    private final SystemController systemController;
+    private final WiseSayingController wiseSayingController;
+
+    // App 을 만들 때마다 공유 객체(저장소·번호 포함)를 새로 만든다 → 테스트마다 초기화된다
+    public App(Scanner scanner) {
+        AppContext.init(scanner);
+
+        this.scanner = AppContext.scanner;
+        this.systemController = AppContext.systemController;
+        this.wiseSayingController = AppContext.wiseSayingController;
+    }
 
     public void run() {
         System.out.println("== 명언 앱 ==");
