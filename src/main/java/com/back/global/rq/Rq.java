@@ -1,4 +1,4 @@
-package com.ll;
+package com.back.global.rq;
 
 import java.util.HashMap;
 import java.util.Map;

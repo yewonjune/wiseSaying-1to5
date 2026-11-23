@@ -3,7 +3,7 @@ plugins {
     application
 }
 
-group = "com.ll"
+group = "com.back"
 version = "1.0-SNAPSHOT"
 
 repositories {
@@ -17,7 +17,7 @@ java {
 }
 
 application {
-    mainClass = "com.ll.Main"
+    mainClass = "com.back.Main"
 }
 
 tasks.named<JavaExec>("run") {

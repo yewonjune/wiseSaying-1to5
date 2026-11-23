@@ -1,9 +1,13 @@
-package com.ll;
+package com.back.domain.wiseSaying.entity;
 
 public class WiseSaying {
-    private final int id;
+    private int id; // 0 이면 아직 저장 전
     private String content;
     private String author;
+
+    public WiseSaying(String content, String author) {
+        this(0, content, author);
+    }
 
     public WiseSaying(int id, String content, String author) {
         this.id = id;
@@ -11,8 +15,16 @@ public class WiseSaying {
         this.author = author;
     }
 
+    public boolean isNew() {
+        return id == 0;
+    }
+
     public int getId() {
         return id;
+    }
+
+    public void setId(int id) {
+        this.id = id;
     }
 
     public String getContent() {
