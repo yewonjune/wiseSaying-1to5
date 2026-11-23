@@ -2,8 +2,8 @@ package com.ll;
 
 public class WiseSaying {
     private final int id;
-    private final String content;
-    private final String author;
+    private String content;
+    private String author;
 
     public WiseSaying(int id, String content, String author) {
         this.id = id;
@@ -19,7 +19,15 @@ public class WiseSaying {
         return content;
     }
 
+    public void setContent(String content) {
+        this.content = content;
+    }
+
     public String getAuthor() {
         return author;
+    }
+
+    public void setAuthor(String author) {
+        this.author = author;
     }
 }
