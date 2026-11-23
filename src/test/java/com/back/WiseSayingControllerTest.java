@@ -1,5 +1,7 @@
 package com.back;
 
+import com.back.domain.wiseSaying.entity.WiseSaying;
+import com.back.domain.wiseSaying.repository.WiseSayingDbRepository;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -13,16 +15,20 @@ import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-// 실제 db/ 가 아닌 테스트 전용 폴더(db/test/wiseSaying)를 쓰고, 매 테스트 전에 비운다
-// → 실행 순서와 상관없이 결과가 같다
+// 실제 개발 DB 가 아닌 테스트 DB(db.testName)와 테스트 전용 폴더(db/test/wiseSaying)를 쓰고,
+// 매 테스트 전에 테이블을 TRUNCATE 하고 폴더를 비운다 → 실행 순서와 상관없이 결과가 같다
 class WiseSayingControllerTest {
+    private static WiseSayingDbRepository testDbRepository;
+
     @BeforeAll
     static void beforeAll() {
         AppConfig.setTestMode();
+        testDbRepository = new WiseSayingDbRepository(AppConfig.getDbConfig(), AppConfig.getDbDir());
     }
 
     @BeforeEach
     void beforeEach() throws IOException {
+        testDbRepository.truncate();
         deleteRecursively(AppConfig.getDbDir());
     }
 
@@ -398,11 +404,11 @@ class WiseSayingControllerTest {
                 .doesNotContain("작자미상 10", "/ 2");
     }
 
-    // ---- 9단계: 파일 영속성 ----
+    // ---- 영속성 (MySQL) ----
 
     @Test
-    @DisplayName("등록하면 {번호}.json 과 lastId.txt 가 생긴다")
-    void t20() throws IOException {
+    @DisplayName("등록하면 테스트 DB 의 wise_saying 테이블에 저장된다")
+    void t20() {
         AppTestRunner.run("""
                 등록
                 현재를 사랑하라.
@@ -410,17 +416,15 @@ class WiseSayingControllerTest {
                 종료
                 """);
 
-        assertThat(readDbFile("1.json")).isEqualTo("""
-                {
-                  "id": 1,
-                  "content": "현재를 사랑하라.",
-                  "author": "작자미상"
-                }""");
-        assertThat(readDbFile("lastId.txt")).isEqualTo("1");
+        assertThat(testDbRepository.count()).isEqualTo(1);
+
+        WiseSaying saved = testDbRepository.findById(1).orElseThrow();
+        assertThat(saved.getContent()).isEqualTo("현재를 사랑하라.");
+        assertThat(saved.getAuthor()).isEqualTo("작자미상");
     }
 
     @Test
-    @DisplayName("프로그램을 다시 시작해도 파일에서 읽어 목록에 보여 준다")
+    @DisplayName("프로그램을 다시 시작해도 DB 에서 읽어 목록에 보여 준다")
     void t21() {
         AppTestRunner.run("""
                 등록
@@ -446,8 +450,8 @@ class WiseSayingControllerTest {
     }
 
     @Test
-    @DisplayName("수정하면 파일이 갱신되고, 재시작 후에도 수정된 내용이 보인다")
-    void t22() throws IOException {
+    @DisplayName("수정하면 DB 가 갱신되고, 재시작 후에도 수정된 내용이 보인다")
+    void t22() {
         AppTestRunner.run("""
                 등록
                 현재를 사랑하라.
@@ -458,10 +462,9 @@ class WiseSayingControllerTest {
                 종료
                 """);
 
-        assertThat(readDbFile("1.json")).contains(
-                "\"content\": \"현재와 자신을 사랑하라.\"",
-                "\"author\": \"홍길동\""
-        );
+        WiseSaying modified = testDbRepository.findById(1).orElseThrow();
+        assertThat(modified.getContent()).isEqualTo("현재와 자신을 사랑하라.");
+        assertThat(modified.getAuthor()).isEqualTo("홍길동");
 
         String out = AppTestRunner.run("""
                 목록
@@ -472,7 +475,7 @@ class WiseSayingControllerTest {
     }
 
     @Test
-    @DisplayName("삭제하면 파일도 지우고, 재시작 후 새 명언은 삭제된 번호를 재사용하지 않는다")
+    @DisplayName("삭제하면 DB 에서도 지우고, 재시작 후 새 명언은 삭제된 번호를 재사용하지 않는다")
     void t23() {
         AppTestRunner.run("""
                 등록
@@ -485,8 +488,8 @@ class WiseSayingControllerTest {
                 종료
                 """);
 
-        assertThat(AppConfig.getDbDir().resolve("2.json")).doesNotExist();
-        assertThat(AppConfig.getDbDir().resolve("1.json")).exists();
+        assertThat(testDbRepository.findById(2)).isEmpty();
+        assertThat(testDbRepository.findById(1)).isPresent();
 
         String out = AppTestRunner.run("""
                 등록
@@ -534,7 +537,26 @@ class WiseSayingControllerTest {
     }
 
     @Test
-    @DisplayName("빌드 파일(data.json)과 lastId.txt 는 명언으로 읽지 않는다")
+    @DisplayName("검색어의 % 는 와일드카드가 아니라 글자 그대로 찾는다")
+    void t26() {
+        String out = AppTestRunner.run("""
+                등록
+                100% 노력하라.
+                작자미상
+                등록
+                현재를 사랑하라.
+                작자미상
+                목록?keyword=%
+                종료
+                """);
+
+        assertThat(out)
+                .contains("1 / 작자미상 / 100% 노력하라.")
+                .doesNotContain("2 / 작자미상 / 현재를 사랑하라.");
+    }
+
+    @Test
+    @DisplayName("빌드 후에도 목록은 그대로다")
     void t25() {
         String out = AppTestRunner.run("""
                 등록

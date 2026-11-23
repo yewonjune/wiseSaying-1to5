@@ -6,4 +6,7 @@ build/
 *.iml
 out/
 
-db/
+/db/
+
+# DB 접속 정보 (비밀번호 포함)
+db.properties
